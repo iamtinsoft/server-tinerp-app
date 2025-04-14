@@ -1,0 +1,18 @@
+{
+  "admin_email": "admin@bugle.ng",
+  "app_url": "http://localhost:3000",
+  "client_url": "http://tinsoft.linkpc.net/",
+  "port": "3000",
+  "db_host": "localhost",
+  "db_user": "root",
+  "db_password": "@Password123",
+  "db_database": "bugle_db",
+  "jwtPrivateKey": "@Hidemyass2",
+  "mail_host": "xdr",
+  "mail_port": "rty",
+  "mail_user": "fdfd",
+  "mail_password": "gdgd",
+  "cloudinary_cloud_name": "fdfd",
+  "cloudinary_api_key": "fdffd",
+  "cloudinary_api_secret": "fdffd"
+}

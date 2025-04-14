@@ -1,0 +1,20 @@
+{
+  "admin_email": "viktinho56@gmail.com",
+  "app_url": "http://localhost:4000",
+  "client_url": "http://localhost:5173",
+  "db_host": "20.119.80.125",
+  "db_user": "tinsoft_admin_db",
+  "db_password": "secure_password",
+  "db_database": "tinsoft_nerp_db",
+  "port": "3000",
+  "requiresAuth": false,
+  "jwtPrivateKeyExpiration": "1h",
+  "jwtPrivateKey": "@Hidemyass2",
+  "mail_host": "premium240.web-hosting.com",
+  "mail_port": "465",
+  "mail_user": "notifications@zabstis.com",
+  "mail_password": "notifications@zabstis.com",
+  "cloudinary_cloud_name": "tinsoft-technologies",
+  "cloudinary_api_key": "258468962871469",
+  "cloudinary_api_secret": "4FLZfZwulpmkTqiklxTFcf4DATo"
+}
