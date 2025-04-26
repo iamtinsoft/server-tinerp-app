@@ -60,6 +60,7 @@ router.post("/auth", async (req, res) => {
         res.status(201).json({ message: "Employee Authenticated Successfully", token });
         //res.json({ token });
     } catch (error) {
+        console.log(error)
         res.status(500).json({ error: error.message });
     }
     // db.query(
@@ -522,7 +523,7 @@ router.put("/:id", [auth], async (req, res) => {
         const query = `
             UPDATE employees
             SET tenant_id = ?, employee_number = ?, supervisor_id = ?, avatar = ?, first_name = ?, 
-                last_name = ?, designation_id = ?, department_id = ?, email = ?, password = ?, 
+                last_name = ?, designation_id = ?, department_id = ?, email = ?, 
                 phone_number = ?, hire_date = ?, date_of_birth = ?, is_supervisor = ?, 
                 is_admin = ?, status = ?, updated_at = CURRENT_TIMESTAMP
             WHERE employee_id = ?
@@ -537,7 +538,7 @@ router.put("/:id", [auth], async (req, res) => {
             designation_id,
             department_id,
             email || null,
-            password || null,
+
             phone_number || null,
             hire_date || null,
             date_of_birth || null,
@@ -558,6 +559,100 @@ router.put("/:id", [auth], async (req, res) => {
     }
 });
 
+
+router.put("/account-password/:id", [auth], async (req, res) => {
+    const { id } = req.params;
+    const {
+        password,
+    } = req.body;
+
+    try {
+        const salt = await bcrypt.genSalt(10);
+        let cryptedPassword = await bcrypt.hash(password, salt);
+        const query = `
+            UPDATE employees
+            SET  password = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE employee_id = ?
+        `;
+        const [result] = await db.execute(query, [
+            cryptedPassword,
+            id,
+        ]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
+
+        res.status(200).json({ message: "Employee Password updated successfully" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error updating employee", error });
+    }
+});
+
+// Update an employee
+router.put("/profile/:id", [auth], async (req, res) => {
+    const { id } = req.params;
+    console.log(req.params);
+    const {
+        tenant_id,
+        employee_number,
+        supervisor_id,
+        avatar = null,
+        first_name,
+        last_name,
+        designation_id,
+        department_id,
+        email,
+        //password,
+        phone_number,
+        hire_date,
+        date_of_birth,
+        is_supervisor,
+        is_admin,
+        status,
+    } = req.body;
+
+    try {
+        const query = `
+            UPDATE employees
+            SET tenant_id = ?, employee_number = ?, supervisor_id = ?, avatar = ?, first_name = ?, 
+                last_name = ?, designation_id = ?, department_id = ?, email = ?, 
+                phone_number = ?, hire_date = ?, date_of_birth = ?, is_supervisor = ?, 
+                is_admin = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE employee_id = ?
+        `;
+        const [result] = await db.execute(query, [
+            tenant_id,
+            employee_number || null,
+            supervisor_id,
+            avatar || null,
+            first_name || null,
+            last_name || null,
+            designation_id,
+            department_id,
+            email || null,
+
+            phone_number || null,
+            hire_date || null,
+            date_of_birth || null,
+            is_supervisor || "False",
+            is_admin || "False",
+            status || "Active",
+            id,
+        ]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
+        const [rows] = await db.execute("SELECT e.*,t.* FROM employees e JOIN tenants t ON e.tenant_id = t.tenant_id WHERE e.employee_id =? ", [id]);
+        const token = generateAuthToken(rows[0]);
+        res.status(201).json({ message: "Employee updated successfully", token });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error updating employee", error });
+    }
+});
 // Delete an employee
 router.delete("/:id", [auth], async (req, res) => {
     const { id } = req.params;

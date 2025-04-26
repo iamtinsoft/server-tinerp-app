@@ -97,6 +97,61 @@ router.post("/", [auth], async (req, res) => {
     }
 });
 
+
+// Read all tenants with pagination, search, and sorting
+router.get("/breakdown", [auth], async (req, res) => {
+    const { page = 1, limit = 10, sortColumn = "tenant_name", sortOrder = "ASC", search = "" } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Whitelist allowed columns for sorting to prevent SQL injection
+    const allowedSortColumns = ["tenant_id", "tenant_name", "tenant_email", "status", "created_at", "updated_at"];
+    const column = allowedSortColumns.includes(sortColumn) ? sortColumn : "tenant_name";
+    const order = sortOrder.toUpperCase() === "DESC" ? "DESC" : "ASC";
+
+    try {
+        const query = `
+            SELECT
+    t.tenant_name AS name,
+    COUNT(e.employee_id) AS value
+FROM
+    tenants t
+LEFT JOIN
+    employees e ON t.tenant_id = e.tenant_id
+GROUP BY
+    t.tenant_id, t.tenant_name
+            LIMIT ? OFFSET ?
+        `;
+        const countQuery = `
+            SELECT COUNT(*) AS total
+            FROM tenants t
+            WHERE t.tenant_name LIKE ? OR t.tenant_email LIKE ?
+        `;
+
+        const searchTerm = `%${search}%`;
+
+        const [rows] = await db.query(query, [parseInt(limit), parseInt(offset)]);
+        const [[{ total }]] = await db.query(countQuery, [searchTerm, searchTerm]);
+
+        res.status(200).json({
+            tenants: rows,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit),
+            },
+            sorting: {
+                sortColumn: column,
+                sortOrder: order,
+            },
+            search: search,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching tenants", error });
+    }
+});
+
 // Read all tenants with pagination, search, and sorting
 router.get("/", [auth], async (req, res) => {
     const { page = 1, limit = 10, sortColumn = "tenant_name", sortOrder = "ASC", search = "" } = req.query;

@@ -158,6 +158,153 @@ router.get("/", [auth], async (req, res) => {
     }
 });
 
+router.get("/employee/:id", [auth], async (req, res) => {
+    const { page = 1, limit = 10, sortColumn = "created_at", sortOrder = "DESC", search = "", tenant = 0 } = req.query;
+    const offset = (page - 1) * limit;
+    const id = req.params.id;
+    const allowedSortColumns = ["leave_request_id", "tenant_id", "record_year", "employee_id", "leave_type_id", "total_days", "status", "created_at", "updated_at"];
+    const column = allowedSortColumns.includes(sortColumn) ? sortColumn : "created_at";
+    const order = sortOrder.toUpperCase() === "DESC" ? "DESC" : "ASC";
+
+    try {
+        const query = `
+            SELECT
+    lr.*,
+    lt.leave_name,
+    e.first_name,
+    e.last_name,
+    e.avatar,
+    t.tenant_name,
+    (SELECT SUM(sub_lr.total_days)
+     FROM leave_requests sub_lr
+     WHERE sub_lr.employee_id = lr.employee_id) AS total_leaves,
+     (SELECT SUM(sub_alr.total_days)
+     FROM leave_requests sub_alr
+     WHERE sub_alr.employee_id = lr.employee_id AND sub_alr.status="Approved") AS total_approved_leaves,
+
+     (SELECT SUM(sub_alr.total_days)
+     FROM leave_requests sub_alr
+     WHERE sub_alr.employee_id = lr.employee_id AND sub_alr.status="Pending") AS total_pending_leaves,
+
+     (SELECT SUM(sub_alr.total_days)
+     FROM leave_requests sub_alr
+     WHERE sub_alr.employee_id = lr.employee_id AND sub_alr.status="Rejected") AS total_rejected_leaves
+FROM
+    leave_requests lr
+JOIN
+    tenants t ON lr.tenant_id = t.tenant_id
+JOIN
+    leave_types lt ON lr.leave_type_id = lt.leave_type_id
+JOIN
+    employees e ON lr.employee_id = e.employee_id
+WHERE
+    lr.employee_id = ?
+    AND (
+        lr.tenant_id LIKE ?
+        OR lr.record_year LIKE ?
+        OR lt.leave_name LIKE ?
+        OR e.first_name LIKE ?
+        OR e.last_name LIKE ?
+    )
+ORDER BY
+    ${column} ${order}
+LIMIT ? OFFSET ?;
+        `;
+        const countQuery = `
+            SELECT COUNT(*) AS total
+            FROM leave_requests lr
+            JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+            JOIN employees e ON lr.employee_id = e.employee_id
+            WHERE lr.tenant_id LIKE ? OR lr.record_year LIKE ? OR lt.leave_name LIKE ?
+            OR e.first_name LIKE ? OR e.last_name LIKE ?
+        `;
+
+        const searchTerm = `%${search}%`;
+
+        let [rows] = await db.query(query, [id, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, parseInt(limit), parseInt(offset)]);
+        const [[{ total }]] = await db.query(countQuery, [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
+        rows = tenant > 0 ? rows.filter((d) => d.tenant_id == tenant) : rows
+        res.status(200).json({
+            leave_requests: rows,
+            pagination: {
+                total: tenant > 0 ? rows.length : total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(tenant > 0 ? rows.length : total / limit),
+            },
+            sorting: {
+                sortColumn: column,
+                sortOrder: order,
+            },
+            search: search,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching leave requests", error });
+    }
+});
+
+router.get("/supervisor/:id", [auth], async (req, res) => {
+    const { page = 1, limit = 10, sortColumn = "created_at", sortOrder = "DESC", search = "", tenant = 0 } = req.query;
+    const offset = (page - 1) * limit;
+    const id = req.params.id;
+    const allowedSortColumns = ["leave_request_id", "tenant_id", "record_year", "employee_id", "leave_type_id", "total_days", "status", "created_at", "updated_at"];
+    const column = allowedSortColumns.includes(sortColumn) ? sortColumn : "created_at";
+    const order = sortOrder.toUpperCase() === "DESC" ? "DESC" : "ASC";
+
+    try {
+        const query = `
+            SELECT lr.*, lt.leave_name, e.first_name, e.last_name,e.avatar,t.tenant_name
+            FROM leave_requests lr
+            JOIN tenants t ON lr.tenant_id = t.tenant_id
+            JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+            JOIN employees e ON lr.employee_id = e.employee_id
+            WHERE
+    e.supervisor_id = ?
+    AND (
+        lr.tenant_id LIKE ?
+        OR lr.record_year LIKE ?
+        OR lt.leave_name LIKE ?
+        OR e.first_name LIKE ?
+        OR e.last_name LIKE ?
+    )
+            ORDER BY ${column} ${order}
+            LIMIT ? OFFSET ?
+        `;
+        const countQuery = `
+            SELECT COUNT(*) AS total
+            FROM leave_requests lr
+            JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+            JOIN employees e ON lr.employee_id = e.employee_id
+            WHERE lr.tenant_id LIKE ? OR lr.record_year LIKE ? OR lt.leave_name LIKE ?
+            OR e.first_name LIKE ? OR e.last_name LIKE ?
+        `;
+
+        const searchTerm = `%${search}%`;
+
+        let [rows] = await db.query(query, [id, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, parseInt(limit), parseInt(offset)]);
+        const [[{ total }]] = await db.query(countQuery, [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
+        rows = tenant > 0 ? rows.filter((d) => d.tenant_id == tenant) : rows
+        res.status(200).json({
+            leave_requests: rows,
+            pagination: {
+                total: tenant > 0 ? rows.length : total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(tenant > 0 ? rows.length : total / limit),
+            },
+            sorting: {
+                sortColumn: column,
+                sortOrder: order,
+            },
+            search: search,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching leave requests", error });
+    }
+});
+
 // Get a single leave request by ID
 router.get("/:id", [auth], async (req, res) => {
     const { id } = req.params;

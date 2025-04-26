@@ -111,6 +111,131 @@ router.get("/:id", [auth], async (req, res) => {
     }
 });
 
+
+router.get("/employee/:tenant_id/:employee_id/", [auth], async (req, res) => {
+    const { employee_id, tenant_id } = req.params;
+    const { page = 1, limit = 10, column = "c.updated_at", order = "DESC", search = "" } = req.query;
+
+    try {
+        // Calculate pagination offsets
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+
+        // Main query to fetch conversations
+        const query = `
+            SELECT
+                e.employee_id,
+                e.first_name,
+                e.last_name,
+                e.email,
+                e.avatar,
+                c.conversation_id,
+                c.sender_id,
+                c.receiver_id,
+                c.status AS conversation_status,
+                c.updated_at AS conversation_updated_at,
+                cr.conversation_reply_id AS last_reply_id,
+                cr.message AS last_message,
+                cr.created_at AS last_reply_created_at
+            FROM
+                conversations c
+            JOIN
+                employees e
+                ON (
+                    CASE
+                        WHEN c.sender_id = ? THEN c.receiver_id = e.employee_id
+                        WHEN c.receiver_id = ? THEN c.sender_id = e.employee_id
+                    END
+                )
+            LEFT JOIN
+                (
+                    SELECT
+                        conversation_id,
+                        MAX(conversation_reply_id) AS last_reply_id
+                    FROM
+                        conversation_reply
+                    GROUP BY
+                        conversation_id
+                ) AS last_replies
+                ON c.conversation_id = last_replies.conversation_id
+            LEFT JOIN
+                conversation_reply cr
+                ON last_replies.last_reply_id = cr.conversation_reply_id
+            WHERE
+                c.tenant_id = ?
+                AND (c.sender_id = ? OR c.receiver_id = ?)
+                AND (e.first_name LIKE ? OR e.last_name LIKE ?)
+            ORDER BY
+                ${column} ${order}
+            LIMIT ?
+            OFFSET ?
+        `;
+
+        // Count query for pagination
+        const countQuery = `
+            SELECT
+                COUNT(*) AS total
+            FROM
+                conversations c
+            JOIN
+                employees e
+                ON (
+                    CASE
+                        WHEN c.sender_id = ? THEN c.receiver_id = e.employee_id
+                        WHEN c.receiver_id = ? THEN c.sender_id = e.employee_id
+                    END
+                )
+            WHERE
+                c.tenant_id = ?
+                AND (c.sender_id = ? OR c.receiver_id = ?)
+                AND (e.first_name LIKE ? OR e.last_name LIKE ?)
+        `;
+
+        const searchTerm = `%${search}%`;
+
+        // Execute queries
+        const [rows] = await db.query(query, [
+            employee_id,
+            employee_id,
+            tenant_id,
+            employee_id,
+            employee_id,
+            searchTerm,
+            searchTerm,
+            parseInt(limit),
+            offset,
+        ]);
+
+        const [[{ total }]] = await db.query(countQuery, [
+            employee_id,
+            employee_id,
+            tenant_id,
+            employee_id,
+            employee_id,
+            searchTerm,
+            searchTerm,
+        ]);
+
+        // Respond with results and pagination info
+        res.status(200).json({
+            conversations: rows,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit),
+            },
+            sorting: {
+                sortColumn: column,
+                sortOrder: order,
+            },
+            search: search,
+        });
+    } catch (error) {
+        console.error("Error fetching conversation:", error);
+        res.status(500).json({ message: "Error fetching conversation", error });
+    }
+});
+
 // Update a conversation
 router.put("/:id", [auth], async (req, res) => {
     const { id } = req.params;
