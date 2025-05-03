@@ -93,6 +93,34 @@ router.get("/", [auth], async (req, res) => {
 });
 
 // Get a single program by ID
+router.get("/tenant/:id", [auth], async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const query = `
+            SELECT p.*, t.tenant_name
+            FROM programs p
+            JOIN tenants t ON p.tenant_id = t.tenant_id
+            WHERE t.tenant_id = ?
+        `;
+        const [rows] = await db.execute(query, [id]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Program not found" });
+        }
+        // for (let index = 0; index < rows.length; index++) {
+        //     const element = rows[index];
+        //     element.color = "blue.solid"
+        // }
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching program", error });
+    }
+});
+
+
+// Get a single program by ID
 router.get("/:id", [auth], async (req, res) => {
     const { id } = req.params;
 

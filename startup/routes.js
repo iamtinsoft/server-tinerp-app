@@ -32,7 +32,7 @@ const timesheet_entries = require("../routes/timesheet_entries");
 const avatarUploader = require("../routes/avatarUploader");
 // const email = require("../routes/email");
 // const upload = require("../routes/upload");
-// const multiUploader = require("../routes/multiUploader");
+const multi_uploader = require("../routes/multi_uploader");
 // const auth = require("../routes/auth");
 
 module.exports = function (app) {
@@ -68,6 +68,7 @@ module.exports = function (app) {
   app.use("/api/timesheets", timesheets);
   app.use("/api/timesheets-entries", timesheet_entries);
   app.use("/api/avatar-uploader", avatarUploader);
+  app.use("/api/multi-uploader", multi_uploader);
   // app.use("/api/auth", auth);
 
 
@@ -79,7 +80,7 @@ module.exports = function (app) {
   // app.use("/api/events", events);
   // app.use("/api/notifications", notifications);
   // app.use("/api/upload", upload);
-  // app.use("/api/multiUploader", multiUploader);
+
   app.use(error);
 
 };

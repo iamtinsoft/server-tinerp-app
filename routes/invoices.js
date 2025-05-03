@@ -175,6 +175,30 @@ router.put("/:id", [auth], async (req, res) => {
     }
 });
 
+
+// Update an invoice by ID
+router.put("/transaction-status/:id", [auth], async (req, res) => {
+    const { id } = req.params;
+    const { payment_status, payment_date, remarks } = req.body;
+
+    try {
+        const result = await db.query(
+            `UPDATE invoices SET payment_status = ?, payment_date = ?, remarks = ?
+             WHERE invoice_id = ?`,
+            [payment_status, payment_date, remarks, id]
+        );
+
+        if (result[0].affectedRows === 0) {
+            return res.status(404).json({ message: "Invoice not found" });
+        }
+
+        res.status(200).json({ message: "Invoice updated successfully" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error updating invoice", error });
+    }
+});
+
 // Delete an invoice by ID
 router.delete("/:id", [auth], async (req, res) => {
     const { id } = req.params;

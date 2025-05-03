@@ -81,6 +81,8 @@ router.get("/", [auth], async (req, res) => {
     }
 });
 
+
+
 // Read a single module by ID
 router.get("/:id", [auth], async (req, res) => {
     const { id } = req.params;

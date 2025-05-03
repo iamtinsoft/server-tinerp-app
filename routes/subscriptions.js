@@ -112,8 +112,8 @@ router.get("/:id", [auth], async (req, res) => {
 // Update a subscription
 router.put("/:id", [auth], async (req, res) => {
     const { id } = req.params;
-    const { tenant_id, plan_id, status } = req.body;
-
+    const { tenant_id, plan_id, sexpiry_date } = req.body;
+    console.log(req.body)
     try {
         // Check if the new tenant_id and plan_id combination already exists (excluding current subscription)
         // const checkQuery = `
@@ -127,10 +127,10 @@ router.put("/:id", [auth], async (req, res) => {
 
         const query = `
             UPDATE subscriptions
-            SET tenant_id = ?, plan_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+            SET tenant_id = ?, plan_id = ?, expiry_date = ?, updated_at = CURRENT_TIMESTAMP
             WHERE subscription_id = ?
         `;
-        const [result] = await db.execute(query, [tenant_id, plan_id, status || "Active", id]);
+        const [result] = await db.execute(query, [tenant_id, plan_id, expiry_date, id]);
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: "Subscription not found" });

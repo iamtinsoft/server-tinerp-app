@@ -134,6 +134,32 @@ router.get("/:id", [auth], async (req, res) => {
 });
 
 
+
+router.get("/details/:tenant_id/:record_year/", [auth], async (req, res) => {
+    const { tenant_id, record_year } = req.params;
+
+    try {
+        const query = `
+            SELECT ls.*, ls.used_days AS value, t.tenant_name, e.first_name AS employee_first_name, lt.leave_name AS name
+            FROM leave_summary ls
+            JOIN tenants t ON ls.tenant_id = t.tenant_id
+            JOIN employees e ON ls.employee_id = e.employee_id
+            JOIN leave_types lt ON ls.leave_type_id = lt.leave_type_id
+            WHERE ls.tenant_id = ?  AND ls.record_year=?
+        `;
+        const [rows] = await db.execute(query, [tenant_id, record_year]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Leave summary not found" });
+        }
+        console.log(rows)
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching leave summary", error });
+    }
+});
+
 router.get("/details/:tenant_id/:employee_id/:record_year/", [auth], async (req, res) => {
     const { tenant_id, employee_id, record_year } = req.params;
 

@@ -15,7 +15,7 @@ const { sendPasswordResetEmail, sendOtpEmail } = require("./../helpers/email");
 router.post("/admin/auth", async (req, res) => {
     const currentDateTime = new Date();
     try {
-        const [rows] = await db.execute("SELECT e.*,t.tenant_name FROM employees e JOIN tenants t ON e.tenant_id = t.tenant_id WHERE t.tenant_name=? AND e.email =? AND e.status = ? AND e.is_admin =?", [req.body.TenantAuthenticationIdentifier,
+        const [rows] = await db.execute("SELECT e.*,s.subscription_id,p.*,t.* FROM employees e JOIN tenants t ON e.tenant_id = t.tenant_id JOIN subscriptions s ON t.tenant_id = s.tenant_id JOIN plans p ON p.plan_id = s.plan_id  WHERE t.tenant_name=? AND e.email =? AND e.status = ? AND e.is_admin =?", [req.body.TenantAuthenticationIdentifier,
         req.body.AdminAuthenticationIdentifier,
             "Active",
             "True",]);
@@ -38,7 +38,7 @@ router.post("/auth", async (req, res) => {
     const currentDateTime = new Date();
     // if (error) return res.status(400).send(error.details[0].message);
     try {
-        const [rows] = await db.execute("SELECT e.*,t.* FROM employees e JOIN tenants t ON e.tenant_id = t.tenant_id WHERE t.tenant_name=? AND e.email =? AND e.status = ? ", [req.body.TenantAuthenticationIdentifier,
+        const [rows] = await db.execute("SELECT e.*,s.status AS subscription_status,s.subscription_id,p.*,t.* FROM employees e JOIN tenants t ON e.tenant_id = t.tenant_id JOIN subscriptions s ON t.tenant_id = s.tenant_id JOIN plans p ON p.plan_id = s.plan_id  WHERE t.tenant_name=? AND e.email =? AND e.status = ? ", [req.body.TenantAuthenticationIdentifier,
         req.body.email,
             "Active"]);
         if (rows.length === 0) return res.status(404).json({ error: "Employee / Tenant Combination not Found" });

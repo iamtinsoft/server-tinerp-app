@@ -17,7 +17,7 @@ router.post("/", [auth], async (req, res) => {
         const [existingRecord] = await db.query(checkQuery, [tenant_id, sender_id, receiver_id]);
 
         if (existingRecord.length > 0) {
-            return res.status(400).json({ message: "A conversation with the same tenant, sender, and receiver already exists." });
+            return res.status(200).json({ message: "A conversation with the same tenant, sender, and receiver already exists.", last_inserted_id: existingRecord[0].conversation_id });
         }
 
         // Insert new conversation

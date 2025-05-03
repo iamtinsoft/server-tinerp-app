@@ -90,13 +90,13 @@ router.get("/:id", [auth], async (req, res) => {
 
     try {
         const query = `
-            SELECT pm.*, p.plan_name, m.module_name
+            SELECT pm.*, p.plan_name, m.module_name,m.module_url
             FROM plan_modules pm
             JOIN plans p ON pm.plan_id = p.plan_id
             JOIN modules m ON pm.module_id = m.module_id
-            WHERE pm.plan_id = ?
+            WHERE pm.plan_id = ? AND pm.status = ?
         `;
-        const [rows] = await db.execute(query, [id]);
+        const [rows] = await db.execute(query, [id, "Active"]);
 
         if (rows.length === 0) {
             return res.status(404).json({ message: "Plan-module mapping not found" });

@@ -91,6 +91,60 @@ router.get("/", [auth], async (req, res) => {
     }
 });
 
+// Get timesheet entries with pagination, search, and sorting
+router.get("/breakdown/", [auth], async (req, res) => {
+    const { page = 1, limit = 10, sortColumn = "created_at", sortOrder = "DESC", search = "", tenant_id } = req.query;
+    const offset = (page - 1) * limit;
+
+    const allowedSortColumns = ["timesheet_entries_id", "timesheet_id", "employee_id", "program_id", "created_at", "updated_at"];
+    const column = allowedSortColumns.includes(sortColumn) ? sortColumn : "created_at";
+    const order = sortOrder.toUpperCase() === "DESC" ? "DESC" : "ASC";
+
+    try {
+        const query = `
+            SELECT te.*, t.record_month,t.total_hours, t.record_year, e.first_name, e.last_name, p.program_name
+            FROM timesheet_entries te
+            JOIN timesheets t ON te.timesheet_id = t.timesheet_id
+            JOIN employees e ON te.employee_id = e.employee_id
+            JOIN programs p ON te.program_id = p.program_id
+            WHERE t.status =? AND t.tenant_id = ? 
+            ORDER BY ${column} ${order}
+            LIMIT ? OFFSET ?
+        `;
+        const countQuery = `
+            SELECT COUNT(*) AS total
+            FROM timesheet_entries te
+            JOIN timesheets t ON te.timesheet_id = t.timesheet_id
+            JOIN employees e ON te.employee_id = e.employee_id
+            JOIN programs p ON te.program_id = p.program_id
+            WHERE t.record_month LIKE ? OR t.record_year LIKE ? OR e.first_name LIKE ? OR e.last_name LIKE ? OR p.program_name LIKE ?
+        `;
+
+        const searchTerm = `%${search}%`;
+
+        const [rows] = await db.query(query, ["Approved", tenant_id, parseInt(limit), parseInt(offset)]);
+        const [[{ total }]] = await db.query(countQuery, [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
+
+        res.status(200).json({
+            timesheet_entries: rows,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit),
+            },
+            sorting: {
+                sortColumn: column,
+                sortOrder: order,
+            },
+            search: search,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching timesheet entries", error });
+    }
+});
+
 // Get a single timesheet entry by ID
 router.get("/:id", [auth], async (req, res) => {
     const { id } = req.params;

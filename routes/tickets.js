@@ -534,6 +534,47 @@ router.post("/create-comment-log", [auth], async (req, res) => {
     }
 });
 
+router.post("/create-attachment-log", [auth], async (req, res) => {
+    const { ticket_id, entity_type, entity_id, file_path, file_type, file_name, file_size } = req.body;
+    const db = await mysql.createConnection({
+        host: db_host,
+        user: db_user,
+        password: db_password,
+        database: db_database,
+    });
+    // const connection = await db.getConnection();
+    await db.beginTransaction();
+
+    try {
+        // Insert new ticket
+        const [ticketResult] = await db.query(
+            `INSERT INTO ticket_logs (ticket_id, action, entity_type, entity_id)
+             VALUES (?, ?, ?, ?)`,
+            [ticket_id, "Attachment", entity_type, entity_id]
+        );
+
+        const log_id = ticketResult.insertId;
+
+        // Log the creation of the ticket
+        await db.query(
+            `INSERT INTO ticket_attachments (ticket_id, log_id,file_path,file_type,file_name,file_size, entity_type, entity_id)
+             VALUES (?, ?, ?, ?,?, ?, ?, ?)`,
+            [ticket_id, log_id, file_path, file_type, file_name, file_size, entity_type, entity_id]
+        );
+
+        // Commit the transaction
+        await db.commit();
+        res.status(201).json({ message: "Ticket Log created successfully", log_id });
+    } catch (error) {
+        // Rollback in case of error
+        await db.rollback();
+        console.error(error);
+        res.status(500).json({ message: "Error creating ticket log", error });
+    } finally {
+        db.end();
+    }
+});
+
 // Create a new ticketLog (with transaction)
 router.post("/update-ticket-log", [auth], async (req, res) => {
     const { ticket_id, entity_type, entity_id, action_type } = req.body;

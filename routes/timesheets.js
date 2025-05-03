@@ -233,9 +233,11 @@ router.get("/employee/", [auth], async (req, res) => {
 });
 
 router.get("/supervisor/:id", [auth], async (req, res) => {
-    const { page = 1, limit = 10, sortColumn = "created_at", sortOrder = "DESC", search = "", tenant = 0 } = req.query;
+
+    const { page = 1, limit = 10, sortColumn = "created_at", sortOrder = "DESC", search = "", tenant = 0, employee_id } = req.query;
     const offset = (page - 1) * limit;
     const { id } = req.params.id
+    //console.log(id)
     const allowedSortColumns = ["timesheet_id", "tenant_id", "record_year", "record_month", "employee_id", "total_hours", "submission_date", "approval_date", "created_at", "updated_at", "status"];
     const column = allowedSortColumns.includes(sortColumn) ? sortColumn : "created_at";
     const order = sortOrder.toUpperCase() === "DESC" ? "DESC" : "ASC";
@@ -265,7 +267,65 @@ router.get("/supervisor/:id", [auth], async (req, res) => {
 
         const searchTerm = `%${search}%`;
 
-        let [rows] = await db.query(query, [id, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, parseInt(limit), parseInt(offset)]);
+        let [rows] = await db.query(query, [employee_id, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, parseInt(limit), parseInt(offset)]);
+        console.log(rows)
+        const [[{ total }]] = await db.query(countQuery, [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
+        rows = tenant > 0 ? rows.filter((d) => d.tenant_id == tenant) : rows
+        res.status(200).json({
+            timesheets: rows,
+            pagination: {
+                total: tenant > 0 ? rows.length : total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(tenant > 0 ? rows.length : total / limit),
+            },
+            sorting: {
+                sortColumn: column,
+                sortOrder: order,
+            },
+            search: search,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching timesheets", error });
+    }
+});
+
+router.get("/employee/breakdown", [auth], async (req, res) => {
+    const { page = 1, limit = 10, sortColumn = "created_at", sortOrder = "DESC", search = "", tenant = 0, employee_id } = req.query;
+    const offset = (page - 1) * limit;
+    // const { id } = req.params.id
+    // console.log(id)
+    const allowedSortColumns = ["timesheet_id", "tenant_id", "record_year", "record_month", "employee_id", "total_hours", "submission_date", "approval_date", "created_at", "updated_at", "status"];
+    const column = allowedSortColumns.includes(sortColumn) ? sortColumn : "created_at";
+    const order = sortOrder.toUpperCase() === "DESC" ? "DESC" : "ASC";
+
+    try {
+        const query = `
+            SELECT t.*, e.avatar,e.first_name, e.last_name, ten.tenant_name
+            FROM timesheets t
+            JOIN employees e ON t.employee_id = e.employee_id
+            JOIN tenants ten ON t.tenant_id = ten.tenant_id
+            WHERE t.tenant_id =? AND
+            ( t.record_month LIKE ?
+             OR t.record_year LIKE ?
+              OR e.first_name LIKE ? OR
+              e.last_name LIKE ? OR
+               ten.tenant_name LIKE ?)
+            ORDER BY ${column} ${order}
+            LIMIT ? OFFSET ?
+        `;
+        const countQuery = `
+            SELECT COUNT(*) AS total
+            FROM timesheets t
+            JOIN employees e ON t.employee_id = e.employee_id
+            JOIN tenants ten ON t.tenant_id = ten.tenant_id
+            WHERE t.record_month LIKE ? OR t.record_year LIKE ? OR e.first_name LIKE ? OR e.last_name LIKE ? OR ten.tenant_name LIKE ?
+        `;
+
+        const searchTerm = `%${search}%`;
+
+        let [rows] = await db.query(query, [employee_id, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, parseInt(limit), parseInt(offset)]);
         const [[{ total }]] = await db.query(countQuery, [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
         rows = tenant > 0 ? rows.filter((d) => d.tenant_id == tenant) : rows
         res.status(200).json({

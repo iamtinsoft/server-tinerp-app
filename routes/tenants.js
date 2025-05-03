@@ -119,6 +119,8 @@ LEFT JOIN
     employees e ON t.tenant_id = e.tenant_id
 GROUP BY
     t.tenant_id, t.tenant_name
+    ORDER BY
+    value DESC
             LIMIT ? OFFSET ?
         `;
         const countQuery = `
