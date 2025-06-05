@@ -173,9 +173,8 @@ async function bulkDBInsert(data, req, res, leave_summary) {
 
 // Helper to insert leave summary for an employee
 async function insertLeaveSummary(db, tenant_id, record_year, employee_id, leave) {
-    const { leave_type_id, used_days = 0, max_days = 0, carry_forward_days = 0 } = leave;
-    const balance_days = max_days + carry_forward_days - used_days;
-    console.log(tenant_id, record_year, employee_id, leave_type_id)
+    const { leave_type_id, used_days = 0, max_days = 0, carry_forward_days = 0, carried_over_days = 0 } = leave;
+    const balance_days = max_days + carried_over_days - used_days;
     const checkLeaveQuery = `
         SELECT 1 FROM leave_summary
         WHERE tenant_id = ? AND record_year = ? AND employee_id = ? AND leave_type_id = ?
@@ -187,10 +186,10 @@ async function insertLeaveSummary(db, tenant_id, record_year, employee_id, leave
     }
 
     const insertLeaveQuery = `
-        INSERT INTO leave_summary (tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO leave_summary (tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days,carried_over_days)
+        VALUES (?, ?, ?, ?, ?, ?,?)
     `;
-    await db.execute(insertLeaveQuery, [tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days]);
+    await db.execute(insertLeaveQuery, [tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days, carried_over_days]);
 }
 
 module.exports = router;

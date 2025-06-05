@@ -1,0 +1,42 @@
+export admin_email="victor.fadipe@tinsoft.tech"
+export app_url="https://liveserver.tinerp.ng"
+export client_url="http://localhost:5173"
+export db_host="34.57.197.95"
+export db_user="tinsoft"
+export db_password="@Hidemyass2@#$%^&*()_+"
+export db_database="tinsoft_nerp_db_live"
+export port="6000"
+export requiresAuth="true"
+export jwtPrivateKeyExpiration="1h"
+export jwtPrivateKey="@Hidemyass2"
+export mail_host="premium240.web-hosting.com"
+export mail_port="465"
+export mail_user="notifications@zabstis.com"
+export mail_password="notifications@zabstis.com"
+export cloudinary_cloud_name="tinsoft-technologies"
+export cloudinary_api_key="258468962871469"
+export cloudinary_api_secret="4FLZfZwulpmkTqiklxTFcf4DATo"
+export calendarific_api_key="KggF1g7IeWHsh4Lf3K1WAB7khiLIIrY1"
+
+echo "Environment variables have been set successfully."
+
+
+{
+  "admin_email": "admin_email",
+  "app_url": "app_url",
+  "client_url": "client_url",
+  "port": "port",
+  "db_host": "db_host",
+  "db_user": "db_user",
+  "db_password": "db_password",
+  "db_database": "db_database",
+  "jwtPrivateKey": "jwtPrivateKey",
+  "mail_host": "mail_host",
+  "mail_port": "mail_port",
+  "mail_user": "mail_user",
+  "mail_password": "mail_password",
+  "cloudinary_cloud_name": "cloudinary_cloud_name",
+  "cloudinary_api_key": "cloudinary_api_key",
+  "cloudinary_api_secret": "cloudinary_api_secret",
+  "calendarific_api_key": "calendarific_api_key"
+}

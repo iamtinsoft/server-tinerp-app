@@ -93,24 +93,40 @@ router.get("/", [auth], async (req, res) => {
 
 // Get timesheet entries with pagination, search, and sorting
 router.get("/breakdown/", [auth], async (req, res) => {
-    const { page = 1, limit = 10, sortColumn = "created_at", sortOrder = "DESC", search = "", tenant_id } = req.query;
+    const { page = 1, limit = 10, sortColumn = "created_at", sortOrder = "DESC", search = "", tenant_id, employee_id } = req.query;
+    console.log(req.query)
     const offset = (page - 1) * limit;
-
+    const status = "Approved"
     const allowedSortColumns = ["timesheet_entries_id", "timesheet_id", "employee_id", "program_id", "created_at", "updated_at"];
     const column = allowedSortColumns.includes(sortColumn) ? sortColumn : "created_at";
     const order = sortOrder.toUpperCase() === "DESC" ? "DESC" : "ASC";
-
+    // WHERE t.status =? AND t.tenant_id = ? 
+    // ORDER BY ${column} ${order}
+    // LIMIT ? OFFSET ?
     try {
-        const query = `
+        let query = `
             SELECT te.*, t.record_month,t.total_hours, t.record_year, e.first_name, e.last_name, p.program_name
             FROM timesheet_entries te
             JOIN timesheets t ON te.timesheet_id = t.timesheet_id
             JOIN employees e ON te.employee_id = e.employee_id
             JOIN programs p ON te.program_id = p.program_id
-            WHERE t.status =? AND t.tenant_id = ? 
-            ORDER BY ${column} ${order}
-            LIMIT ? OFFSET ?
+            WHERE
+                1=1
         `;
+        const queryParams = [];
+        // Add status filtering
+        if (status) {
+            query += ` AND t.status = ?`;
+            queryParams.push(status);
+        }
+        if (tenant_id) {
+            query += ` AND t.tenant_id = ?`;
+            queryParams.push(tenant_id);
+        }
+        if (employee_id) {
+            query += ` AND te.employee_id = ?`;
+            queryParams.push(employee_id);
+        }
         const countQuery = `
             SELECT COUNT(*) AS total
             FROM timesheet_entries te
@@ -121,8 +137,10 @@ router.get("/breakdown/", [auth], async (req, res) => {
         `;
 
         const searchTerm = `%${search}%`;
-
-        const [rows] = await db.query(query, ["Approved", tenant_id, parseInt(limit), parseInt(offset)]);
+        // Add sorting and pagination
+        query += ` ORDER BY ${column} ${order} LIMIT ? OFFSET ?`;
+        queryParams.push(parseInt(limit), parseInt(offset));
+        const [rows] = await db.query(query, queryParams);
         const [[{ total }]] = await db.query(countQuery, [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
 
         res.status(200).json({

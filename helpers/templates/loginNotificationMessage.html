@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Login Notification</title>
+    <style>
+        /* Reset styles for email clients */
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            background-color: #f7f7f7;
+        }
+        
+        * {
+            box-sizing: border-box;
+        }
+        
+        /* Main container */
+        .email-wrapper {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .email-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Header section */
+        .email-header {
+            background: linear-gradient(135deg, #1a73e8, #0d47a1);
+            padding: 30px 0;
+            text-align: center;
+        }
+        
+        .logo {
+            width: 120px;
+            height: auto;
+            margin-bottom: 10px;
+        }
+        
+        .header-title {
+            color: #ffffff;
+            font-size: 22px;
+            font-weight: 600;
+            margin: 0;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Content section */
+        .email-content {
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .greeting {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #1a73e8;
+        }
+        
+        .message {
+            font-size: 16px;
+            color: #555555;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+        
+        .login-details {
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #f0f7ff;
+            border: 1px solid #e1effe;
+            border-radius: 8px;
+            text-align: left;
+        }
+        
+        .login-details-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .login-details-table td {
+            padding: 8px 0;
+            font-size: 14px;
+        }
+        
+        .login-details-table td:first-child {
+            font-weight: 600;
+            color: #555555;
+            width: 40%;
+        }
+        
+        .login-details-table td:last-child {
+            color: #1a73e8;
+        }
+        
+        .alert-icon {
+            font-size: 48px;
+            color: #1a73e8;
+            margin-bottom: 15px;
+        }
+        
+        .action-button {
+            display: inline-block;
+            background-color: #e53935;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 14px 30px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 16px;
+            margin: 20px 0;
+            transition: background-color 0.3s;
+        }
+        
+        .action-button:hover {
+            background-color: #c62828;
+        }
+        
+        .divider {
+            height: 1px;
+            background-color: #eeeeee;
+            margin: 30px 0;
+        }
+        
+        /* Footer section */
+        .email-footer {
+            background-color: #f5f8ff;
+            padding: 25px 30px;
+            text-align: center;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .security-notice {
+            font-size: 14px;
+            color: #757575;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        
+        .help-text {
+            font-size: 14px;
+            color: #757575;
+            margin-bottom: 15px;
+        }
+        
+        .help-text a {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+        
+        .copyright {
+            font-size: 12px;
+            color: #9e9e9e;
+            margin-top: 20px;
+        }
+        
+        /* Responsive adjustments */
+        @media screen and (max-width: 480px) {
+            .email-content {
+                padding: 30px 20px;
+            }
+            
+            .login-details {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-wrapper">
+        <div class="email-container">
+            <!-- Header with logo and title -->
+            <div class="email-header">
+                <img src="https://res.cloudinary.com/dkl5bbevg/image/upload/v1748268752/primary-logo.72eede96_c76w62.svg" alt="Company Logo" class="logo">
+                <h1 class="header-title">Login Notification</h1>
+            </div>
+            
+            <!-- Main content -->
+            <div class="email-content">
+                <h2 class="greeting">New Login Detected</h2>
+                <!-- <p class="message">We detected a new login to your account. If this was you, no action is needed. If you didn't log in, please secure your account immediately.</p>
+                 -->
+                <div class="login-details">
+                    <table class="login-details-table">
+                        <tr>
+                            <td>Date:</td>
+                            <td><%= new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %></td>
+                        </tr>
+                        <tr>
+                            <td>Time:</td>
+                            <td><%= new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) %></td>
+                        </tr>
+                        <tr>
+                            <td>Location:</td>
+                            <td><%= location || 'Unknown' %></td>
+                        </tr>
+                        <tr>
+                            <td>IP Address:</td>
+                            <td><%= ipAddress || 'Unknown' %></td>
+                        </tr>
+                        <tr>
+                            <td>Device:</td>
+                            <td><%= device || 'Unknown' %></td>
+                        </tr>
+                        <tr>
+                            <td>Browser:</td>
+                            <td><%= browser || 'Unknown' %></td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <!-- <a href="#" class="action-button">Secure My Account</a> -->
+                
+                <div class="divider"></div>
+                
+                <p class="message">If this was you, you can safely ignore this email. If you didn't log in, please change your password immediately and contact our support team.</p>
+            </div>
+            
+            <!-- Footer with additional information -->
+            <div class="email-footer">
+                <p class="security-notice">For security reasons, we monitor all login activities. We recommend using strong, unique passwords and enabling two-factor authentication.</p>
+                
+                <p class="help-text">Need help? Contact our support team at <a href="mailto:contact@tinsoft.tech">contact@tinsoft.tech</a></p>
+                
+                <p class="copyright">© 2025 Tinsoft Technologies. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

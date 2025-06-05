@@ -3,27 +3,44 @@ const express = require("express");
 const router = express.Router();
 const db = require("../startup/db")();
 const auth = require("../middleware/auth");
+const mysql = require("mysql2/promise");
+const config = require("config");
+const db_host = config.get("db_host");
+const db_user = config.get("db_user");
+const db_password = config.get("db_password");
+const db_database = config.get("db_database");
+
 
 // Create a leave type
 router.post("/", [auth], async (req, res) => {
     const { tenant_id, leave_name, leave_description, max_days, carry_forward_days, color_code, status } = req.body;
+    const db = await mysql.createConnection({
+        host: db_host,
+        user: db_user,
+        password: db_password,
+        database: db_database,
+    });
+    //const connection = await db.getConnection(); // Acquire a database connection for the transaction
 
     try {
+        await db.beginTransaction(); // Start the transaction
+
         // Check if the combination of tenant_id and leave_name already exists
-        const checkQuery = `
+        const checkLeaveTypeQuery = `
             SELECT * FROM leave_types WHERE tenant_id = ? AND leave_name = ?
         `;
-        const [existing] = await db.query(checkQuery, [tenant_id, leave_name]);
+        const [existingLeaveType] = await db.query(checkLeaveTypeQuery, [tenant_id, leave_name]);
 
-        if (existing.length > 0) {
+        if (existingLeaveType.length > 0) {
             return res.status(400).json({ message: "This leave name already exists for the given tenant" });
         }
 
-        const query = `
-            INSERT INTO leave_types (tenant_id, leave_name, leave_description, max_days, carry_forward_days,color_code, status)
-            VALUES (?, ?, ?, ?, ?, ?,?)
+        // Insert new leave type
+        const insertLeaveTypeQuery = `
+            INSERT INTO leave_types (tenant_id, leave_name, leave_description, max_days, carry_forward_days, color_code, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
-        const [result] = await db.execute(query, [
+        const [insertLeaveTypeResult] = await db.execute(insertLeaveTypeQuery, [
             tenant_id,
             leave_name,
             leave_description,
@@ -32,13 +49,69 @@ router.post("/", [auth], async (req, res) => {
             color_code,
             status || "Active",
         ]);
+        const leaveTypeId = insertLeaveTypeResult.insertId;
 
-        res.status(201).json({ message: "Leave type created successfully", last_inserted_id: result.insertId });
+        // Get all employees for the tenant
+        const getEmployeesQuery = `
+            SELECT employee_id FROM employees WHERE tenant_id = ?
+        `;
+        const [employees] = await db.query(getEmployeesQuery, [tenant_id]);
+
+        if (employees.length === 0) {
+            throw new Error("No employees found for the given tenant.");
+        }
+
+        // Current year
+        const currentYear = new Date().getFullYear();
+
+        // Loop through employees and insert into leave_summary
+        const insertLeaveSummaryQuery = `
+            INSERT INTO leave_summary (tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days, carried_over_days)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+        for (const employee of employees) {
+            const { employee_id } = employee;
+
+            // Avoid duplicate entries in leave_summary
+            const checkLeaveSummaryQuery = `
+                SELECT * FROM leave_summary
+                WHERE tenant_id = ? AND record_year = ? AND employee_id = ? AND leave_type_id = ?
+            `;
+            const [existingLeaveSummary] = await db.query(checkLeaveSummaryQuery, [
+                tenant_id,
+                currentYear,
+                employee_id,
+                leaveTypeId,
+            ]);
+
+            if (existingLeaveSummary.length === 0) {
+                await db.execute(insertLeaveSummaryQuery, [
+                    tenant_id,
+                    currentYear,
+                    employee_id,
+                    leaveTypeId,
+                    0, // used_days
+                    max_days, // balance_days
+                    carry_forward_days || 0, // carried_over_days
+                ]);
+            }
+        }
+
+        await db.commit(); // Commit the transaction
+
+        res.status(201).json({
+            message: "Leave type created successfully and leave summary updated for all employees.",
+            leave_type_id: leaveTypeId,
+        });
     } catch (error) {
+        await db.rollback(); // Rollback the transaction in case of an error
         console.error(error);
-        res.status(500).json({ message: "Error creating leave type", error });
+        res.status(500).json({ message: "Error creating leave type and updating leave summary", error: error.message });
+    } finally {
+        db.end(); // Release the database connection
     }
 });
+
 
 // Get leave types with pagination, sorting, and search
 router.get("/", [auth], async (req, res) => {

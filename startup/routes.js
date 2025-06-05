@@ -19,6 +19,8 @@ const programs = require("../routes/programs");
 const subscriptions = require("../routes/subscriptions");
 const tasks = require("../routes/tasks");
 const tenants = require("../routes/tenants");
+const announcements = require("../routes/announcements");
+
 
 const tickets = require("../routes/tickets");
 const ticket_logs = require("../routes/ticket_logs");
@@ -27,6 +29,7 @@ const ticket_attachments = require("../routes/ticket_attachments");
 
 const transactions = require("../routes/transactions");
 const invoices = require("../routes/invoices");
+const resources = require("../routes/resources");
 const timesheets = require("../routes/timesheets");
 const timesheet_entries = require("../routes/timesheet_entries");
 const avatarUploader = require("../routes/avatarUploader");
@@ -57,7 +60,8 @@ module.exports = function (app) {
   app.use("/api/subscriptions", subscriptions);
   app.use("/api/tasks", tasks);
   app.use("/api/tenants", tenants);
-
+  app.use("/api/announcements", announcements);
+  app.use("/api/resources", resources);
   app.use("/api/tickets", tickets);
   app.use("/api/ticket_logs", ticket_logs);
   app.use("/api/ticket_attachments", ticket_attachments);

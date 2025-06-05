@@ -1,6 +1,7 @@
 const winston = require("winston");
 const config = require("config");
 const express = require("express");
+const { syncHolidaysForYear } = require('./helpers/calendarificToMysql');
 const app = express();
 
 const http = require("http").Server(app);
@@ -78,5 +79,6 @@ app.use("/uploads", express.static("uploads"));
 const port = process.env.PORT || config.get("port");
 
 http.listen(port, () => {
-  winston.info(`Listening on port ${port}...`);
+  //syncHolidaysForYear(2025)
+  winston.info(`Listening   on port ${port}...`);
 });

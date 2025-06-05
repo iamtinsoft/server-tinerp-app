@@ -6,7 +6,7 @@ const auth = require("../middleware/auth");
 
 // Create a leave summary record
 router.post("/", [auth], async (req, res) => {
-    const { tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days } = req.body;
+    const { tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days, carried_over_days } = req.body;
 
     try {
         // Check if the combination of tenant_id, record_year, employee_id, and leave_type_id already exists
@@ -23,8 +23,8 @@ router.post("/", [auth], async (req, res) => {
         }
 
         const query = `
-            INSERT INTO leave_summary (tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO leave_summary (tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days,carried_over_days)
+            VALUES (?, ?, ?, ?, ?, ?,?)
         `;
         const [result] = await db.execute(query, [
             tenant_id,
@@ -33,6 +33,7 @@ router.post("/", [auth], async (req, res) => {
             leave_type_id,
             used_days,
             balance_days,
+            carried_over_days
         ]);
 
         res.status(201).json({ message: "Leave summary created successfully", last_inserted_id: result.insertId });
@@ -61,7 +62,7 @@ router.get("/", [auth], async (req, res) => {
 
     try {
         const query = `
-            SELECT ls.*, t.tenant_name, e.first_name AS employee_first_name, lt.leave_name
+            SELECT ls.*, t.tenant_name, e.first_name AS employee_first_name,lt.max_days, lt.leave_name
             FROM leave_summary ls
             JOIN tenants t ON ls.tenant_id = t.tenant_id
             JOIN employees e ON ls.employee_id = e.employee_id
@@ -113,7 +114,7 @@ router.get("/:id", [auth], async (req, res) => {
 
     try {
         const query = `
-            SELECT ls.*, t.tenant_name, e.first_name AS employee_first_name, lt.leave_name
+            SELECT ls.*, t.tenant_name, e.first_name AS employee_first_name,lt.carry_forward_days, lt.max_days,lt.leave_name
             FROM leave_summary ls
             JOIN tenants t ON ls.tenant_id = t.tenant_id
             JOIN employees e ON ls.employee_id = e.employee_id
@@ -140,19 +141,19 @@ router.get("/details/:tenant_id/:record_year/", [auth], async (req, res) => {
 
     try {
         const query = `
-            SELECT ls.*, ls.used_days AS value, t.tenant_name, e.first_name AS employee_first_name, lt.leave_name AS name
+            SELECT ls.*, ls.used_days AS value, t.tenant_name, e.first_name AS employee_first_name,lt.max_days, lt.carry_forward_days,lt.leave_name AS name
             FROM leave_summary ls
             JOIN tenants t ON ls.tenant_id = t.tenant_id
             JOIN employees e ON ls.employee_id = e.employee_id
             JOIN leave_types lt ON ls.leave_type_id = lt.leave_type_id
-            WHERE ls.tenant_id = ?  AND ls.record_year=?
+            WHERE lt.tenant_id = ?  AND ls.record_year=?
         `;
         const [rows] = await db.execute(query, [tenant_id, record_year]);
 
         if (rows.length === 0) {
             return res.status(404).json({ message: "Leave summary not found" });
         }
-        console.log(rows)
+        // console.log(rows)
         res.status(200).json(rows);
     } catch (error) {
         console.error(error);
@@ -165,12 +166,12 @@ router.get("/details/:tenant_id/:employee_id/:record_year/", [auth], async (req,
 
     try {
         const query = `
-            SELECT ls.*, ls.used_days AS value, t.tenant_name, e.first_name AS employee_first_name, lt.leave_name AS name
+            SELECT ls.*, ls.used_days AS value, t.tenant_name, e.first_name AS employee_first_name,lt.max_days, lt.carry_forward_days,lt.leave_name AS name
             FROM leave_summary ls
             JOIN tenants t ON ls.tenant_id = t.tenant_id
             JOIN employees e ON ls.employee_id = e.employee_id
             JOIN leave_types lt ON ls.leave_type_id = lt.leave_type_id
-            WHERE ls.tenant_id = ? AND ls.employee_id =? AND ls.record_year=?
+            WHERE lt.tenant_id = ? AND ls.employee_id =? AND ls.record_year=?
         `;
         const [rows] = await db.execute(query, [tenant_id, employee_id, record_year]);
 
@@ -191,7 +192,7 @@ router.get("/details/:tenant_id/:employee_id/:record_year/:leave_type_id", [auth
 
     try {
         const query = `
-            SELECT ls.*, t.tenant_name, e.first_name AS employee_first_name, lt.leave_name
+            SELECT ls.*, t.tenant_name, e.first_name AS employee_first_name,lt.carry_forward_days, lt.max_days,lt.leave_name
             FROM leave_summary ls
             JOIN tenants t ON ls.tenant_id = t.tenant_id
             JOIN employees e ON ls.employee_id = e.employee_id
@@ -213,14 +214,14 @@ router.get("/details/:tenant_id/:employee_id/:record_year/:leave_type_id", [auth
 // Update a leave summary
 router.put("/:id", [auth], async (req, res) => {
     const { id } = req.params;
-    const { tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days } = req.body;
+    const { tenant_id, record_year, employee_id, leave_type_id, used_days, balance_days, carried_over_days } = req.body;
 
     try {
 
 
         const query = `
             UPDATE leave_summary
-            SET tenant_id = ?, record_year = ?, employee_id = ?, leave_type_id = ?, used_days = ?, balance_days = ?
+            SET tenant_id = ?, record_year = ?, employee_id = ?, leave_type_id = ?, used_days = ?, balance_days = ?,carried_over_days=?
             WHERE leave_summary_id = ?
         `;
         const [result] = await db.execute(query, [
@@ -230,6 +231,7 @@ router.put("/:id", [auth], async (req, res) => {
             leave_type_id,
             used_days,
             balance_days,
+            carried_over_days,
             id,
         ]);
 

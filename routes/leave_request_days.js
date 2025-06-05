@@ -113,6 +113,64 @@ router.get("/:id", [auth], async (req, res) => {
 });
 
 // Get a single leave request day by ID
+router.get("/details/:tenant_id/:employee_id/:status", [auth], async (req, res) => {
+    const { tenant_id, employee_id, status } = req.params;
+
+    try {
+        const query = `
+            SELECT lrd.*,lr.record_year,e.*, t.tenant_name,lt.leave_name,lt.color_code
+            FROM leave_request_days lrd
+            JOIN tenants t ON lrd.tenant_id = t.tenant_id
+            JOIN employees e ON lrd.employee_id = e.employee_id
+             JOIN leave_requests lr ON lrd.leave_request_id = lr.leave_request_id
+            JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+            WHERE  lrd.employee_id = ? AND lrd.tenant_id = ? AND lr.status =?
+        `;
+        let [rows] = await db.execute(query, [employee_id, tenant_id, status]);
+
+        if (rows.length === 0) {
+
+            //res.status(200).json(rows);
+            // return res.status(404).json({ message: "Leave request day not found" });
+        }
+        //rows = tenant_id > 0 ? rows.filter((d) => d.tenant_id == tenant_id) : rows
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching leave request day", error });
+    }
+});
+
+// Get a single leave request day by ID
+router.get("/details/:tenant_id/:status", [auth], async (req, res) => {
+    const { tenant_id, status } = req.params;
+
+    try {
+        const query = `
+            SELECT lrd.*,lr.record_year,e.*, t.tenant_name,lt.leave_name,lt.color_code
+            FROM leave_request_days lrd
+            JOIN tenants t ON lrd.tenant_id = t.tenant_id
+            JOIN employees e ON lrd.employee_id = e.employee_id
+             JOIN leave_requests lr ON lrd.leave_request_id = lr.leave_request_id
+            JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+            WHERE lrd.tenant_id = ? AND lr.status =?
+        `;
+        let [rows] = await db.execute(query, [tenant_id, status]);
+
+        if (rows.length === 0) {
+
+            //res.status(200).json(rows);
+            // return res.status(404).json({ message: "Leave request day not found" });
+        }
+        //rows = tenant_id > 0 ? rows.filter((d) => d.tenant_id == tenant_id) : rows
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching leave request day", error });
+    }
+});
+
+// Get a single leave request day by ID
 router.get("/details/:tenant_id/:employee_id/:record_month/:record_year/:status", [auth], async (req, res) => {
     const { tenant_id, employee_id, record_month, record_year, status } = req.params;
 

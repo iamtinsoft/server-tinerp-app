@@ -75,7 +75,7 @@ router.post("/", [auth], async (req, res) => {
         if (existingLeaveRequestDays.length > 0) {
             await db.rollback();
             return res.status(400).json({
-                message: "Some leave dates already exist for this request.",
+                message: "One or more leave date(s) already exist for this request.",
                 existingDates: existingLeaveRequestDays.map((d) => d.leave_date),
             });
         }
@@ -90,7 +90,7 @@ router.post("/", [auth], async (req, res) => {
         await db.commit(); // Commit transaction
 
         res.status(201).json({
-            message: "Leave request and leave request days created successfully",
+            message: "Leave request submitted successfully",
             leave_request_id,
         });
 
@@ -174,6 +174,7 @@ router.get("/employee/:id", [auth], async (req, res) => {
     e.first_name,
     e.last_name,
     e.avatar,
+    e.supervisor_id,
     t.tenant_name,
     (SELECT SUM(sub_lr.total_days)
      FROM leave_requests sub_lr

@@ -285,88 +285,6 @@ const sendNotificationEmail = async (
   );
 };
 
-const sendSampleNotificationEmail = async (
-  receiver,
-  subject,
-  content,
-  appUrl
-  // tpl,
-  // sample_count,
-  // sample_types
-) => {
-  console.log("called");
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const time = new Date().toLocaleTimeString();
-  const date = new Date().toLocaleDateString();
-  ejs.renderFile(
-    __dirname + "/templates/sampleMovementNotification.ejs",
-    {
-      receiver,
-      content,
-      timezone,
-      time,
-      date,
-      subject,
-      appUrl,
-      // tpl,
-      // sample_count,
-      // sample_types,
-    },
-    (err, data) => {
-      if (err) {
-        console.log(err);
-      } else {
-        var mailOptions = {
-          from: mailUser,
-          to: receiver,
-          subject: subject,
-          html: data,
-        };
-
-        transport.sendMail(mailOptions, (error, info) => {
-          if (error) {
-            return console.log(error);
-          }
-          console.log("Message sent: %s", info.messageId);
-        });
-      }
-    }
-  );
-};
-
-const sendResultNotificationEmail = async (
-  receiver,
-  subject,
-  content,
-  appUrl
-) => {
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const time = new Date().toLocaleTimeString();
-  const date = new Date().toLocaleDateString();
-  ejs.renderFile(
-    __dirname + "/templates/resultMovementNotification.ejs",
-    { receiver, content, timezone, time, date, subject, appUrl },
-    (err, data) => {
-      if (err) {
-        console.log(err);
-      } else {
-        var mailOptions = {
-          from: mailUser,
-          to: receiver,
-          subject: subject,
-          html: data,
-        };
-
-        transport.sendMail(mailOptions, (error, info) => {
-          if (error) {
-            return console.log(error);
-          }
-          console.log("Message sent: %s", info.messageId);
-        });
-      }
-    }
-  );
-};
 
 module.exports = {
   sendPaymentEmail,
@@ -376,7 +294,7 @@ module.exports = {
   sendWelcomeEmail,
   sendPasswordResetEmail,
   sendNotificationEmail,
-  sendSampleNotificationEmail,
-  sendResultNotificationEmail,
+  // sendSampleNotificationEmail,
+  // sendResultNotificationEmail,
   sendEmployeeNotificationEmail
 };

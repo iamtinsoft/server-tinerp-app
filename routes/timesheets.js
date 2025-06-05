@@ -268,7 +268,7 @@ router.get("/supervisor/:id", [auth], async (req, res) => {
         const searchTerm = `%${search}%`;
 
         let [rows] = await db.query(query, [employee_id, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, parseInt(limit), parseInt(offset)]);
-        console.log(rows)
+        // console.log(rows)
         const [[{ total }]] = await db.query(countQuery, [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
         rows = tenant > 0 ? rows.filter((d) => d.tenant_id == tenant) : rows
         res.status(200).json({

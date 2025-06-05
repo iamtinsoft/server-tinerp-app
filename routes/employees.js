@@ -12,6 +12,7 @@ const db_database = config.get("db_database");
 const bcrypt = require("bcryptjs");
 const { generateAuthToken } = require("../helpers/token");
 const { sendPasswordResetEmail, sendOtpEmail } = require("./../helpers/email");
+
 router.post("/admin/auth", async (req, res) => {
     const currentDateTime = new Date();
     try {
@@ -53,7 +54,7 @@ router.post("/auth", async (req, res) => {
                 .status(500).json({ error: "Invalid Credentials Supplied . Please Try again" });
         }
 
-        const token = generateAuthToken(rows[0]);
+        const token = generateAuthToken(rows[0], req.body.keepLoggedIn);
         let fullName = rows[0].first_name + " " + rows[0].last_name;
         let link = ""
         //sendOtpEmail(req.body.SuperAdminAuthenticationIdentifier, "OTP", req.body.otp, fullName, link);
@@ -63,35 +64,8 @@ router.post("/auth", async (req, res) => {
         console.log(error)
         res.status(500).json({ error: error.message });
     }
-    // db.query(
-    //     `SELECT * FROM employees WHERE email =? AND status = ?`,
-    //     [req.body.email, "Active"],
-    //     async function (err, results) {
-    //         if (results.length == 1) {
-    //             const user = results[0];
-    //             const validPassword = await bcrypt.compare(
-    //                 req.body.password,
-    //                 user.password
-    //             );
-
-    //             if (!validPassword) {
-    //                 return res
-    //                     .status(400)
-    //                     .send("Invalid email / password . Please Try again");
-    //             }
-
-    //             const token = generateAuthToken(user);
-    //             // let fullName = user.firstName + " " + user.lastName;
-    //             //  sendOtpEmail(req.body.email, "OTP", req.body.code, fullName);
-    //             res
-    //                 .status(201)
-    //                 .json({ message: "Tenant Authenticated Successfully", token });
-    //         } else {
-    //             res.status(500).json({ error: err.message });
-    //         }
-    //     }
-    // );
 });
+
 // Create an employee
 router.post("/", [auth], async (req, res) => {
     const db = await mysql.createConnection({
@@ -113,6 +87,7 @@ router.post("/", [auth], async (req, res) => {
         phone_number,
         hire_date,
         date_of_birth,
+        gender, // Added gender field
         is_supervisor,
         is_admin,
         status = "Active",
@@ -122,8 +97,6 @@ router.post("/", [auth], async (req, res) => {
 
     const salt = await bcrypt.genSalt(10);
     const password = await bcrypt.hash("@Password123", salt);
-
-    //const connection = await db.getConnection();
 
     try {
         await db.beginTransaction();
@@ -151,9 +124,9 @@ router.post("/", [auth], async (req, res) => {
         INSERT INTO employees (
             tenant_id, employee_number, supervisor_id, avatar, first_name, last_name,
             designation_id, department_id, email, password, phone_number,
-            hire_date, date_of_birth, is_supervisor, is_admin, status
+            hire_date, date_of_birth, gender, is_supervisor, is_admin, status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
         const [employeeResult] = await db.execute(insertEmployeeQuery, [
             tenant_id,
@@ -169,6 +142,7 @@ router.post("/", [auth], async (req, res) => {
             phone_number || null,
             hire_date || null,
             date_of_birth || null,
+            gender || null, // Added gender field
             is_supervisor || "False",
             is_admin || "False",
             status || "Active",
@@ -241,7 +215,7 @@ router.post("/", [auth], async (req, res) => {
     }
 });
 
-// Get employees with pagination, sorting, and search
+// Get employees with pagination, sorting, and filtering by tenant_id
 router.get("/", [auth], async (req, res) => {
     const {
         page = 1,
@@ -251,62 +225,76 @@ router.get("/", [auth], async (req, res) => {
         search = "",
         tenant = 0,
     } = req.query;
+
     const offset = (page - 1) * limit;
 
+    // Validate sortColumn and sortOrder
     const allowedSortColumns = [
-        "employee_id",
-        "first_name",
-        "last_name",
-        "email",
-        "hire_date",
-        "status",
-        "created_at",
-        "updated_at",
+        "employee_id", "first_name", "last_name", "email", "gender",
+        "hire_date", "status", "created_at", "updated_at"
     ];
-    const column = allowedSortColumns.includes(sortColumn)
-        ? sortColumn
-        : "first_name";
+    const column = allowedSortColumns.includes(sortColumn) ? sortColumn : "first_name";
     const order = sortOrder.toUpperCase() === "DESC" ? "DESC" : "ASC";
 
     try {
-        const query = `
-            SELECT e.*,d.department_name,ds.designation_name,t.tenant_name
+        // Base query
+        let query = `
+            SELECT e.*, d.department_name, ds.designation_name, t.tenant_name
             FROM employees e
             JOIN departments d ON e.department_id = d.department_id
             JOIN designations ds ON e.designation_id = ds.designation_id
             JOIN tenants t ON e.tenant_id = t.tenant_id
-            WHERE e.first_name LIKE ? OR e.last_name LIKE ? OR e.email LIKE ?
-            ORDER BY ${column} ${order}
-            LIMIT ? OFFSET ?
+            WHERE 1=1
         `;
-        const countQuery = `
-            SELECT COUNT(*) AS total
-            FROM employees
-            WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ?
+        const queryParams = [];
+
+        // Add search filtering
+        if (search) {
+            query += ` AND (e.first_name LIKE ? OR e.last_name LIKE ? OR e.email LIKE ?)`;
+            queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
+
+        // Add tenant filtering
+        if (tenant > 0) {
+            query += ` AND e.tenant_id = ?`;
+            queryParams.push(tenant);
+        }
+
+        // Add sorting and pagination
+        query += ` ORDER BY ${column} ${order} LIMIT ? OFFSET ?`;
+        queryParams.push(parseInt(limit), parseInt(offset));
+
+        // Execute the main query
+        let [rows] = await db.query(query, queryParams);
+
+        // Count query for pagination
+        let countQuery = `
+            SELECT COUNT(*) AS total 
+            FROM employees e
+            WHERE 1=1
         `;
+        const countParams = [];
 
-        const searchTerm = `%${search}%`;
+        if (search) {
+            countQuery += ` AND (e.first_name LIKE ? OR e.last_name LIKE ? OR e.email LIKE ?)`;
+            countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
 
-        let [rows] = await db.query(query, [
-            searchTerm,
-            searchTerm,
-            searchTerm,
-            parseInt(limit),
-            parseInt(offset),
-        ]);
-        const [[{ total }]] = await db.query(countQuery, [
-            searchTerm,
-            searchTerm,
-            searchTerm,
-        ]);
-        rows = tenant > 0 ? rows.filter((d) => d.tenant_id == tenant) : rows;
+        if (tenant > 0) {
+            countQuery += ` AND e.tenant_id = ?`;
+            countParams.push(tenant);
+        }
+
+        const [[{ total }]] = await db.query(countQuery, countParams);
+
+        // Send response
         res.status(200).json({
             employees: rows,
             pagination: {
-                total: tenant > 0 ? rows.length : total,
+                total,
                 page: parseInt(page),
                 limit: parseInt(limit),
-                totalPages: Math.ceil(tenant > 0 ? rows.length : total / limit),
+                totalPages: Math.ceil(total / limit),
             },
             sorting: {
                 sortColumn: column,
@@ -320,6 +308,7 @@ router.get("/", [auth], async (req, res) => {
     }
 });
 
+// Get supervisors with pagination, sorting, and filtering by tenant_id 
 router.get("/supervisors", [auth], async (req, res) => {
     const {
         page = 1,
@@ -329,60 +318,76 @@ router.get("/supervisors", [auth], async (req, res) => {
         search = "",
         tenant = 0,
     } = req.query;
+
     const offset = (page - 1) * limit;
 
+    // Validate sortColumn and sortOrder
     const allowedSortColumns = [
-        "employee_id",
-        "first_name",
-        "last_name",
-        "email",
-        "hire_date",
-        "status",
-        "created_at",
-        "updated_at",
+        "employee_id", "first_name", "last_name", "email", "gender",
+        "hire_date", "status", "created_at", "updated_at"
     ];
-    const column = allowedSortColumns.includes(sortColumn)
-        ? sortColumn
-        : "first_name";
+    const column = allowedSortColumns.includes(sortColumn) ? sortColumn : "first_name";
     const order = sortOrder.toUpperCase() === "DESC" ? "DESC" : "ASC";
 
     try {
-        const query = `
-            SELECT *
-            FROM employees
-            WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? AND is_supervisor = ?
-            ORDER BY ${column} ${order}
-            LIMIT ? OFFSET ?
+        // Base query
+        let query = `
+            SELECT e.*, d.department_name, ds.designation_name, t.tenant_name
+            FROM employees e
+            JOIN departments d ON e.department_id = d.department_id
+            JOIN designations ds ON e.designation_id = ds.designation_id
+            JOIN tenants t ON e.tenant_id = t.tenant_id
+            WHERE e.is_supervisor = ?
         `;
-        const countQuery = `
-            SELECT COUNT(*) AS total
-            FROM employees
-            WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ?
+        const queryParams = ["True"];
+
+        // Add search filtering
+        if (search) {
+            query += ` AND (e.first_name LIKE ? OR e.last_name LIKE ? OR e.email LIKE ?)`;
+            queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
+
+        // Add tenant filtering
+        if (tenant > 0) {
+            query += ` AND e.tenant_id = ?`;
+            queryParams.push(tenant);
+        }
+
+        // Add sorting and pagination
+        query += ` ORDER BY ${column} ${order} LIMIT ? OFFSET ?`;
+        queryParams.push(parseInt(limit), parseInt(offset));
+
+        // Execute the main query
+        let [rows] = await db.query(query, queryParams);
+
+        // Count query for pagination
+        let countQuery = `
+            SELECT COUNT(*) AS total 
+            FROM employees e
+            WHERE e.is_supervisor = ?
         `;
+        const countParams = ["True"];
 
-        const searchTerm = `%${search}%`;
+        if (search) {
+            countQuery += ` AND (e.first_name LIKE ? OR e.last_name LIKE ? OR e.email LIKE ?)`;
+            countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
 
-        let [rows] = await db.query(query, [
-            searchTerm,
-            searchTerm,
-            searchTerm,
-            "True",
-            parseInt(limit),
-            parseInt(offset),
-        ]);
-        const [[{ total }]] = await db.query(countQuery, [
-            searchTerm,
-            searchTerm,
-            searchTerm,
-        ]);
-        rows = tenant > 0 ? rows.filter((d) => d.tenant_id == tenant) : rows;
+        if (tenant > 0) {
+            countQuery += ` AND e.tenant_id = ?`;
+            countParams.push(tenant);
+        }
+
+        const [[{ total }]] = await db.query(countQuery, countParams);
+
+        // Send response
         res.status(200).json({
             employees: rows,
             pagination: {
-                total: tenant > 0 ? rows.length : total,
+                total,
                 page: parseInt(page),
                 limit: parseInt(limit),
-                totalPages: Math.ceil(tenant > 0 ? rows.length : total / limit),
+                totalPages: Math.ceil(total / limit),
             },
             sorting: {
                 sortColumn: column,
@@ -392,10 +397,11 @@ router.get("/supervisors", [auth], async (req, res) => {
         });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: "Error fetching employees", error });
+        res.status(500).json({ message: "Error fetching supervisors", error });
     }
 });
 
+// Get administrators with pagination, sorting, and filtering by tenant_id
 router.get("/administrators", [auth], async (req, res) => {
     const {
         page = 1,
@@ -405,60 +411,76 @@ router.get("/administrators", [auth], async (req, res) => {
         search = "",
         tenant = 0,
     } = req.query;
+
     const offset = (page - 1) * limit;
 
+    // Validate sortColumn and sortOrder
     const allowedSortColumns = [
-        "employee_id",
-        "first_name",
-        "last_name",
-        "email",
-        "hire_date",
-        "status",
-        "created_at",
-        "updated_at",
+        "employee_id", "first_name", "last_name", "email", "gender",
+        "hire_date", "status", "created_at", "updated_at"
     ];
-    const column = allowedSortColumns.includes(sortColumn)
-        ? sortColumn
-        : "first_name";
+    const column = allowedSortColumns.includes(sortColumn) ? sortColumn : "first_name";
     const order = sortOrder.toUpperCase() === "DESC" ? "DESC" : "ASC";
 
     try {
-        const query = `
-            SELECT *
-            FROM employees
-            WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? AND is_admin = ?
-            ORDER BY ${column} ${order}
-            LIMIT ? OFFSET ?
+        // Base query
+        let query = `
+            SELECT e.*, d.department_name, ds.designation_name, t.tenant_name
+            FROM employees e
+            JOIN departments d ON e.department_id = d.department_id
+            JOIN designations ds ON e.designation_id = ds.designation_id
+            JOIN tenants t ON e.tenant_id = t.tenant_id
+            WHERE e.is_admin = ?
         `;
-        const countQuery = `
-            SELECT COUNT(*) AS total
-            FROM employees
-            WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ?
+        const queryParams = ["True"];
+
+        // Add search filtering
+        if (search) {
+            query += ` AND (e.first_name LIKE ? OR e.last_name LIKE ? OR e.email LIKE ?)`;
+            queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
+
+        // Add tenant filtering
+        if (tenant > 0) {
+            query += ` AND e.tenant_id = ?`;
+            queryParams.push(tenant);
+        }
+
+        // Add sorting and pagination
+        query += ` ORDER BY ${column} ${order} LIMIT ? OFFSET ?`;
+        queryParams.push(parseInt(limit), parseInt(offset));
+
+        // Execute the main query
+        let [rows] = await db.query(query, queryParams);
+
+        // Count query for pagination
+        let countQuery = `
+            SELECT COUNT(*) AS total 
+            FROM employees e
+            WHERE e.is_admin = ?
         `;
+        const countParams = ["True"];
 
-        const searchTerm = `%${search}%`;
+        if (search) {
+            countQuery += ` AND (e.first_name LIKE ? OR e.last_name LIKE ? OR e.email LIKE ?)`;
+            countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
 
-        let [rows] = await db.query(query, [
-            searchTerm,
-            searchTerm,
-            searchTerm,
-            "True",
-            parseInt(limit),
-            parseInt(offset),
-        ]);
-        const [[{ total }]] = await db.query(countQuery, [
-            searchTerm,
-            searchTerm,
-            searchTerm,
-        ]);
-        rows = tenant > 0 ? rows.filter((d) => d.tenant_id == tenant) : rows;
+        if (tenant > 0) {
+            countQuery += ` AND e.tenant_id = ?`;
+            countParams.push(tenant);
+        }
+
+        const [[{ total }]] = await db.query(countQuery, countParams);
+
+        // Send response
         res.status(200).json({
             employees: rows,
             pagination: {
-                total: tenant > 0 ? rows.length : total,
+                total,
                 page: parseInt(page),
                 limit: parseInt(limit),
-                totalPages: Math.ceil(tenant > 0 ? rows.length : total / limit),
+                totalPages: Math.ceil(total / limit),
             },
             sorting: {
                 sortColumn: column,
@@ -468,7 +490,7 @@ router.get("/administrators", [auth], async (req, res) => {
         });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: "Error fetching employees", error });
+        res.status(500).json({ message: "Error fetching administrators", error });
     }
 });
 
@@ -477,12 +499,14 @@ router.get("/:id", [auth], async (req, res) => {
     const { id } = req.params;
 
     try {
-        const query = `SELECT e.*,d.department_name,ds.designation_name,t.tenant_name
+        const query = `
+            SELECT e.*, d.department_name, ds.designation_name, t.tenant_name
             FROM employees e
             JOIN departments d ON e.department_id = d.department_id
             JOIN designations ds ON e.designation_id = ds.designation_id
             JOIN tenants t ON e.tenant_id = t.tenant_id
-            WHERE e.employee_id = ?`;
+            WHERE e.employee_id = ?
+        `;
         const [rows] = await db.execute(query, [id]);
 
         if (rows.length === 0) {
@@ -514,6 +538,7 @@ router.put("/:id", [auth], async (req, res) => {
         phone_number,
         hire_date,
         date_of_birth,
+        gender, // Added gender field
         is_supervisor,
         is_admin,
         status,
@@ -524,7 +549,7 @@ router.put("/:id", [auth], async (req, res) => {
             UPDATE employees
             SET tenant_id = ?, employee_number = ?, supervisor_id = ?, avatar = ?, first_name = ?, 
                 last_name = ?, designation_id = ?, department_id = ?, email = ?, 
-                phone_number = ?, hire_date = ?, date_of_birth = ?, is_supervisor = ?, 
+                phone_number = ?, hire_date = ?, date_of_birth = ?, gender = ?, is_supervisor = ?, 
                 is_admin = ?, status = ?, updated_at = CURRENT_TIMESTAMP
             WHERE employee_id = ?
         `;
@@ -538,10 +563,10 @@ router.put("/:id", [auth], async (req, res) => {
             designation_id,
             department_id,
             email || null,
-
             phone_number || null,
             hire_date || null,
             date_of_birth || null,
+            gender || null, // Added gender field
             is_supervisor || "False",
             is_admin || "False",
             status || "Active",
@@ -590,7 +615,7 @@ router.put("/account-password/:id", [auth], async (req, res) => {
     }
 });
 
-// Update an employee
+// Update an employee profile
 router.put("/profile/:id", [auth], async (req, res) => {
     const { id } = req.params;
     console.log(req.params);
@@ -604,10 +629,10 @@ router.put("/profile/:id", [auth], async (req, res) => {
         designation_id,
         department_id,
         email,
-        //password,
         phone_number,
         hire_date,
         date_of_birth,
+        gender, // Added gender field
         is_supervisor,
         is_admin,
         status,
@@ -618,7 +643,7 @@ router.put("/profile/:id", [auth], async (req, res) => {
             UPDATE employees
             SET tenant_id = ?, employee_number = ?, supervisor_id = ?, avatar = ?, first_name = ?, 
                 last_name = ?, designation_id = ?, department_id = ?, email = ?, 
-                phone_number = ?, hire_date = ?, date_of_birth = ?, is_supervisor = ?, 
+                phone_number = ?, hire_date = ?, date_of_birth = ?, gender = ?, is_supervisor = ?, 
                 is_admin = ?, status = ?, updated_at = CURRENT_TIMESTAMP
             WHERE employee_id = ?
         `;
@@ -632,10 +657,10 @@ router.put("/profile/:id", [auth], async (req, res) => {
             designation_id,
             department_id,
             email || null,
-
             phone_number || null,
             hire_date || null,
             date_of_birth || null,
+            gender || null, // Added gender field
             is_supervisor || "False",
             is_admin || "False",
             status || "Active",
@@ -645,7 +670,7 @@ router.put("/profile/:id", [auth], async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: "Employee not found" });
         }
-        const [rows] = await db.execute("SELECT e.*,t.* FROM employees e JOIN tenants t ON e.tenant_id = t.tenant_id WHERE e.employee_id =? ", [id]);
+        const [rows] = await db.execute("SELECT e.*,s.status AS subscription_status,s.subscription_id,p.*,t.* FROM employees e JOIN tenants t ON e.tenant_id = t.tenant_id JOIN subscriptions s ON t.tenant_id = s.tenant_id JOIN plans p ON p.plan_id = s.plan_id WHERE e.employee_id =? ", [id]);
         const token = generateAuthToken(rows[0]);
         res.status(201).json({ message: "Employee updated successfully", token });
     } catch (error) {
@@ -653,6 +678,7 @@ router.put("/profile/:id", [auth], async (req, res) => {
         res.status(500).json({ message: "Error updating employee", error });
     }
 });
+
 // Delete an employee
 router.delete("/:id", [auth], async (req, res) => {
     const { id } = req.params;
